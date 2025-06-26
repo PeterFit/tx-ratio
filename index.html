@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Проверка EVM кошельков</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; color: #333; }
+    .container { max-width: 1000px; margin: 0 auto; }
+    #resultsContainer { width: 100vw; margin-left: calc(-50vw + 50%); }
+    textarea { width: 100%; height: 200px; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; }
+    .networks { margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .networks label { font-size: 14px; }
+    .controls { margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .controls label { font-size: 14px; }
+    .controls input { padding: 4px; font-size: 14px; }
+    button { display: block; margin: 10px auto; padding: 10px; font-size: 16px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; width: 80%;  }
+    button:disabled { background-color: #aaa; cursor: not-allowed; }
+    button:hover:enabled { background-color: #45a049; }
+    .results { margin-top: 30px; }
+    table { width: 100%; border-collapse: collapse; background-color: white; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    th { background-color: #f2f2f2; cursor: pointer; }
+    th.sort-asc::after { content: " ▲"; }
+    th.sort-desc::after { content: " ▼"; }
+    .loading { background: linear-gradient(90deg, #f0f0f0, #e0e0e0, #f0f0f0); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    .na { color: red; }
+    .low-ratio { background-color: #ffe5e5; color: #a00; }
+    .yellow-ratio { background-color: #fff8b3; }
+    .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; margin-left: 8px; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Проверка EVM кошельков</h1>
+    <textarea id="addresses" placeholder="Введите адреса EVM кошельков, каждый на новой строке..."></textarea>
+    <div class="networks">
+      <label><input type="checkbox" data-net="base" checked> Base</label>
+      <label><input type="checkbox" data-net="optimism" checked> Optimism</label>
+      <label><input type="checkbox" data-net="unichain" checked> UniChain</label>
+      <label><input type="checkbox" data-net="soneium" checked> Soneium</label>
+      <label><input type="checkbox" data-net="ink" checked> Ink</label>
+      <label><input type="checkbox" data-net="mode"> Mode</label>
+      <label><input type="checkbox" data-net="monad"> Monad</label>
+    </div>
+    <div class="controls">
+      <label>Задержка между запросами от (мс): <input id="delayMin" type="number" value="100" /></label>
+      <label>до (мс): <input id="delayMax" type="number" value="200" /></label>
+      <div style="flex-basis:100%;"></div>
+      <label>Подсвечивать желтым соотношение <= <input id="yellowThreshold" type="number" step="0.0001" value="0.2" /></label>
+      <div style="flex-basis:100%;"></div>
+      <label>Подсвечивать красным соотношение <= <input id="redThreshold" type="number" step="0.0001" value="0.1111" /></label>
+      <div style="flex-basis:100%;"></div>
+      <button id="checkBtn">Проверить</button>
+	  <div style="flex-basis:100%;"><p style="color: #a1a1a1;margin-top: 0px;margin-bottom: 0px;">made by <a href="https://t.me/peterfit" style="color: #a1a1a1;" target="_blank">@peterfit</a></p></div>
+    </div>
+    <div id="results" class="results" style="display:none;">
+      <div id="resultsContainer">
+        <table id="resultsTable">
+          <thead id="tableHead"></thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <script>
+    const API_KEYS = ['QIWZK9JNVCQM4UF1U2W5AHTZIVF8WY435D',
+                      '3T1C1WZW2AFTX547ZZQFNPINHZ1FVKNNE1',
+                      'ZNQED8BUE5FI2RIZTIHG1K9B3PWCY36DV1'];
+    const ALL_NETWORKS = [
+      { key: 'base',      name: 'Base',     url: addr => `https://api.etherscan.io/v2/api?chainid=8453&module=account&action=txlist&address=${addr}&startblock=0&page=1&offset=10000&sort=asc&apikey=${randomKey()}` },
+      { key: 'optimism',  name: 'Optimism', url: addr => `https://api.etherscan.io/v2/api?chainid=10&module=account&action=txlist&address=${addr}&startblock=0&page=1&offset=10000&sort=asc&apikey=${randomKey()}` },
+      { key: 'unichain',  name: 'UniChain', url: addr => `https://api.etherscan.io/v2/api?chainid=130&module=account&action=txlist&address=${addr}&startblock=0&page=1&offset=10000&sort=asc&apikey=${randomKey()}` },
+      { key: 'soneium',   name: 'Soneium',  url: addr => `https://soneium.blockscout.com/api?chainid=1868&module=account&action=txlist&address=${addr}&startblock=0&page=1&offset=10000&sort=asc` },
+      { key: 'ink',       name: 'Ink',      url: addr => `https://explorer.inkonchain.com/api?chainid=57073&module=account&action=txlist&address=${addr}&startblock=0&page=1&offset=10000&sort=asc` },
+      { key: 'mode',      name: 'Mode',     url: addr => `https://explorer.mode.network/api?chainid=34443&module=account&action=txlistinternal&address=${addr}&startblock=0&page=1&offset=10000&sort=asc` },
+      { key: 'monad',     name: 'Monad',    url: addr => `https://api.etherscan.io/v2/api?chainid=10143&module=account&action=txlist&address=${addr}&startblock=0&page=1&offset=10000&sort=asc&apikey=${randomKey()}` }
+    ];
+    let NETWORKS = [], originalData = [], sortStates = {}, scanning = false;
+    const tableHead = document.getElementById('tableHead');
+
+    function randomKey() {
+      return API_KEYS[Math.floor(Math.random() * API_KEYS.length)];
+    }
+
+    function buildTableHeader() {
+      document.querySelectorAll('.controls input, #checkBtn').forEach(el => el.disabled = scanning);
+      tableHead.innerHTML = '';
+      NETWORKS = ALL_NETWORKS.filter(n => document.querySelector(`.networks input[data-net="${n.key}"]`).checked);
+      const tr1 = document.createElement('tr');
+      const tr2 = document.createElement('tr');
+      // Column №
+      let th = document.createElement('th');
+      th.rowSpan = 2;
+      th.textContent = '№';
+      tr1.appendChild(th);
+      // Column Address
+      th = document.createElement('th');
+      th.rowSpan = 2;
+      th.textContent = 'Адрес';
+      tr1.appendChild(th);
+      // Network columns
+      NETWORKS.forEach(net => {
+        th = document.createElement('th');
+        th.colSpan = 3;
+        th.innerHTML = `${net.name}<br><span id="${net.key}MinMax" style="font-size:12px;color:#777;"></span>`;
+        tr1.appendChild(th);
+      });
+      NETWORKS.forEach(net => ['tx', 'ct', 'ratio'].forEach(k => {
+        const th2 = document.createElement('th');
+        th2.dataset.key = `${net.key}_${k}`;
+        th2.textContent = k === 'tx' ? 'Interactions' : k === 'ct' ? 'Unique contracts' : 'Ratio';
+        th2.addEventListener('click', () => sortBy(th2.dataset.key));
+        tr2.appendChild(th2);
+      }));
+      tableHead.appendChild(tr1);
+      tableHead.appendChild(tr2);
+      sortStates = {};
+      document.querySelectorAll('th[data-key]').forEach(th => {
+        sortStates[th.dataset.key] = 0;
+        th.classList.remove('sort-asc', 'sort-desc', 'disabled');
+      });
+    }
+
+    document.querySelectorAll('.networks input').forEach(chk => chk.addEventListener('change', buildTableHeader));
+    buildTableHeader();
+
+    document.getElementById('checkBtn').addEventListener('click', async () => {
+      if (scanning) return;
+      const text = document.getElementById('addresses').value.trim();
+      if (!text) return;
+      const addrs = text.split('\n').map(a => a.trim()).filter(a => a);
+      document.querySelectorAll('.networks input').forEach(el => el.disabled = true);
+      originalData = [];
+      document.getElementById('resultsBody').innerHTML = '';
+      buildTableHeader();
+      renderSkeleton(addrs);
+      scanning = true;
+      document.getElementById('checkBtn').disabled = true;
+      document.getElementById('results').style.display = 'block';
+      const redThr = +document.getElementById('redThreshold').value || 0;
+      const yellowThr = +document.getElementById('yellowThreshold').value || 0;
+      for (const [i, addr] of addrs.entries()) {
+        let low = false;
+        const row = { address: addr, index: i + 1 };
+        for (const net of NETWORKS) {
+          await new Promise(r => setTimeout(r, Math.random() * (+document.getElementById('delayMax').value - +document.getElementById('delayMin').value) + +document.getElementById('delayMin').value));
+          try {
+            const resp = await fetch(net.url(addr));
+            const js = await resp.json();
+            const r = Array.isArray(js.result) ? js.result : [];
+            const txCount = r.filter(t => t.isError === '0' && t.to.toLowerCase() !== addr.toLowerCase()).length;
+            const uniqueCt = new Set(r.filter(t => t.isError === '0' && t.from.toLowerCase() === addr.toLowerCase()).map(t => t.to.toLowerCase())).size;
+            const ratio = txCount ? +(uniqueCt / txCount).toFixed(4) : 0;
+            row[`${net.key}_tx`] = txCount;
+            row[`${net.key}_ct`] = uniqueCt;
+            row[`${net.key}_ratio`] = ratio;
+            ['tx', 'ct', 'ratio'].forEach(k => {
+              const cell = document.getElementById(`cell-${i}-${net.key}-${k}`);
+              cell.classList.remove('loading', 'low-ratio', 'yellow-ratio');
+              if (k === 'tx') cell.textContent = txCount;
+              if (k === 'ct') cell.textContent = uniqueCt;
+              if (k === 'ratio') {
+                cell.textContent = ratio;
+                if (ratio <= redThr) { cell.classList.add('low-ratio'); low = true; } else if (ratio <= yellowThr) { cell.classList.add('yellow-ratio'); }
+              }
+            });
+          } catch {
+            ['tx', 'ct', 'ratio'].forEach(k => {
+              const cell = document.getElementById(`cell-${i}-${net.key}-${k}`);
+              cell.classList.remove('loading');
+              cell.innerHTML = '<span class="na">N/A</span>';
+              row[`${net.key}_${k}`] = null;
+            });
+          }
+        }
+        if (low) document.getElementById(`cell-${i}-address`).classList.add('low-ratio');
+        row.low = low;
+        originalData.push(row);
+      }
+      scanning = false;
+      document.getElementById('checkBtn').disabled = false;
+      document.querySelectorAll('.networks input, .controls input').forEach(el => el.disabled = false);
+    });
+
+    function renderSkeleton(addrs) {
+      const tbody = document.getElementById('resultsBody');
+      tbody.innerHTML = '';
+      addrs.forEach((addr, i) => {
+        const rowElem = document.createElement('tr');
+        let cells = `<td>${i + 1}</td><td id="cell-${i}-address">${addr}</td>`;
+        NETWORKS.forEach(net => ['tx', 'ct', 'ratio'].forEach(k => {
+          cells += `<td id="cell-${i}-${net.key}-${k}" class="loading">...</td>`;
+        }));
+        rowElem.innerHTML = cells;
+        tbody.appendChild(rowElem);
+      });
+    }
+
+    function sortBy(key) {
+      if (scanning) return;
+      Object.keys(sortStates).forEach(k => { if (k !== key) { sortStates[k] = 0; const th = document.querySelector(`th[data-key="${k}"]`); th.classList.remove('sort-asc', 'sort-desc'); th.classList.add('disabled'); }});
+      sortStates[key] = (sortStates[key] + 1) % 3;
+      const th = document.querySelector(`th[data-key="${key}"]`);
+      th.classList.toggle('sort-asc', sortStates[key] === 1);
+      th.classList.toggle('sort-desc', sortStates[key] === 2);
+      th.classList.remove('disabled');
+      let sorted = [...originalData];
+      if (sortStates[key] !== 0) sorted.sort((a, b) => ((a[key] || 0) - (b[key] || 0)) * (sortStates[key] === 2 ? -1 : 1));
+      renderTable(sorted);
+    }
+
+    function renderTable(data) {
+      const tbody = document.getElementById('resultsBody');
+      tbody.innerHTML = '';
+      data.forEach((d) => {
+        const rowElem = document.createElement('tr');
+        let html = `<td>${d.index}</td>`;
+        const addrClass = d.low ? ' class="low-ratio"' : '';
+        html += `<td${addrClass}>${d.address}</td>`;
+        NETWORKS.forEach(net => ['tx', 'ct', 'ratio'].forEach(k => {
+          const v = d[`${net.key}_${k}`];
+          let cellClass = '';
+          if (k === 'ratio') {
+            if (v <= +document.getElementById('redThreshold').value) cellClass = ' class="low-ratio"';
+            else if (v <= +document.getElementById('yellowThreshold').value) cellClass = ' class="yellow-ratio"';
+          }
+          html += `<td${cellClass}>${v == null ? '<span class=\"na\">N/A</span>' : v}</td>`;
+        }));
+        rowElem.innerHTML = html;
+        tbody.appendChild(rowElem);
+      });
+    }
+  </script>
+</body>
+</html>
