@@ -37,6 +37,7 @@
     <h1>Проверка EVM кошельков</h1>
     <textarea id="addresses" placeholder="Введите адреса EVM кошельков, каждый на новой строке..."></textarea>
     <div class="networks">
+      <label><input type="checkbox" data-net="eth" checked> ETH</label>
       <label><input type="checkbox" data-net="base" checked> Base</label>
       <label><input type="checkbox" data-net="optimism" checked> Optimism</label>
       <label><input type="checkbox" data-net="unichain" checked> UniChain</label>
@@ -72,6 +73,7 @@
                       '3T1C1WZW2AFTX547ZZQFNPINHZ1FVKNNE1',
                       'ZNQED8BUE5FI2RIZTIHG1K9B3PWCY36DV1'];
     const ALL_NETWORKS = [
+      { key: 'eth',       name: 'ETH',      url: addr => `https://api.etherscan.io/v2/api?chainid=1&module=account&action=txlist&address=${addr}&startblock=0&page=1&offset=10000&sort=asc&apikey=${randomKey()}` },
       { key: 'base',      name: 'Base',     url: addr => `https://api.etherscan.io/v2/api?chainid=8453&module=account&action=txlist&address=${addr}&startblock=0&page=1&offset=10000&sort=asc&apikey=${randomKey()}` },
       { key: 'optimism',  name: 'Optimism', url: addr => `https://api.etherscan.io/v2/api?chainid=10&module=account&action=txlist&address=${addr}&startblock=0&page=1&offset=10000&sort=asc&apikey=${randomKey()}` },
       { key: 'unichain',  name: 'UniChain', url: addr => `https://api.etherscan.io/v2/api?chainid=130&module=account&action=txlist&address=${addr}&startblock=0&page=1&offset=10000&sort=asc&apikey=${randomKey()}` },
