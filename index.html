@@ -45,6 +45,8 @@
       <label><input type="checkbox" data-net="ink" checked> Ink</label>
       <label><input type="checkbox" data-net="arbitrum" checked> Arbitrum</label>
       <label><input type="checkbox" data-net="zksync" checked> ZKsync</label>
+	  <label><input type="checkbox" data-net="zora" checked> Zora</label>
+      <label><input type="checkbox" data-net="lisk" checked> Lisk</label>
       <label><input type="checkbox" data-net="mode"> Mode</label>
       <label><input type="checkbox" data-net="monad"> Monad</label>
     </div>
@@ -81,6 +83,8 @@
       { key: 'ink',       name: 'Ink',      url: addr => `https://explorer.inkonchain.com/api?chainid=57073&module=account&action=txlist&address=${addr}&startblock=0&page=1&offset=10000&sort=asc` },
       { key: 'arbitrum',  name: 'Arbitrum', url: addr => `https://api.etherscan.io/v2/api?chainid=42161&module=account&action=txlist&address=${addr}&startblock=0&page=1&offset=10000&sort=asc&apikey=${randomKey()}` },
       { key: 'zksync',    name: 'ZKsync',   url: addr => `https://api.etherscan.io/v2/api?chainid=324&module=account&action=txlist&address=${addr}&startblock=0&page=1&offset=10000&sort=asc&apikey=${randomKey()}` },
+      { key: 'zora',      name: 'Zora',     url: addr => `https://explorer.zora.energy/api?chainid=7777777&module=account&action=txlist&address=${addr}&startblock=0&page=1&offset=10000&sort=asc` },
+      { key: 'lisk',      name: 'Lisk',     url: addr => `https://blockscout.lisk.com/api?chainid=1135&module=account&action=txlist&address=${addr}&startblock=0&page=1&offset=10000&sort=asc&apikey=${randomKey()}` },
       { key: 'mode',      name: 'Mode',     url: addr => `https://explorer.mode.network/api?chainid=34443&module=account&action=txlistinternal&address=${addr}&startblock=0&page=1&offset=10000&sort=asc` },
       { key: 'monad',     name: 'Monad',    url: addr => `https://api.etherscan.io/v2/api?chainid=10143&module=account&action=txlist&address=${addr}&startblock=0&page=1&offset=10000&sort=asc&apikey=${randomKey()}` }
     ];
